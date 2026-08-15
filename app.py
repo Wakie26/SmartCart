@@ -42,7 +42,7 @@ def calculate_groceries():
     try:
         # DE NIEUWE METHODE: Gebruik de Interactions/Chats API
         chat = client.chats.create(
-            model="gemini-flash",
+            model="gemini-2.5-flash",
             config=types.GenerateContentConfig(
                 system_instruction=systeem_regels,
                 response_mime_type="application/json"

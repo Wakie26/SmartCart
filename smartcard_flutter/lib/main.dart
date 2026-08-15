@@ -91,7 +91,7 @@ class _VandaagSchermState extends State<VandaagScherm> {
     });
 
     // LET OP: Check of dit jouw EXACTE nieuwe Render URL is!
-    final url = Uri.parse('https://smartcart-gemini.onrender.com/api/calculate');
+    final url = Uri.parse('https://smartcart-vtxn.onrender.com/api/calculate');
     
     try {
       final response = await http.post(
