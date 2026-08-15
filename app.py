@@ -3,7 +3,6 @@ import json
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
 from google import genai
-from google.genai import types
 
 load_dotenv()
 
@@ -40,14 +39,15 @@ def calculate_groceries():
         return jsonify({'error': 'Geen menu opgegeven'}), 400
 
     try:
-        # Volledig overgestapt op de Interactions API
+        # DE OPLOSSING: We geven de instellingen nu direct mee zonder 'config' wrapper!
         interaction = client.interactions.create(
             model="gemini-3.6-flash",
             input=user_input,
-            config=types.GenerateContentConfig(
-                system_instruction=systeem_regels,
-                response_mime_type="application/json"
-            )
+            system_instruction=systeem_regels,
+            response_format={
+                "type": "text",
+                "mime_type": "application/json"
+            }
         )
         
         # Gebruik de nieuwe property 'output_text'
