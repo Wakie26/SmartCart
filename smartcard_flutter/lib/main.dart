@@ -12,9 +12,9 @@ class SmartGroceryApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Smart Grocery',
+      title: 'SmartCart',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        // De donkergroene kleur uit het design
         primaryColor: const Color(0xFF0F4D2A),
         scaffoldBackgroundColor: const Color(0xFFF7F9F8),
         useMaterial3: true,
@@ -25,7 +25,7 @@ class SmartGroceryApp extends StatelessWidget {
   }
 }
 
-// --- HOOFDNAVIGATIE (Bottom Navigation Bar) ---
+// --- HOOFDNAVIGATIE ---
 class HoofdNavigatie extends StatefulWidget {
   const HoofdNavigatie({super.key});
 
@@ -36,12 +36,11 @@ class HoofdNavigatie extends StatefulWidget {
 class _HoofdNavigatieState extends State<HoofdNavigatie> {
   int _huidigeIndex = 0;
 
-  // De verschillende schermen van de app
   final List<Widget> _schermen = [
     const VandaagScherm(),
-    const PlaceholderScherm(titel: 'Jouw week'),
-    const PlaceholderScherm(titel: 'Boodschappen'),
-    const RouteScherm(), // Dit is nu het grijze scherm
+    const PlaceholderScherm(titel: 'Maaltijd'),
+    const PlaceholderScherm(titel: 'Lijst'),
+    const PlaceholderScherm(titel: 'Route'),
   ];
 
   void _onItemTapped(int index) {
@@ -61,8 +60,8 @@ class _HoofdNavigatieState extends State<HoofdNavigatie> {
         unselectedItemColor: Colors.grey,
         onTap: _onItemTapped,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Vandaag'),
-          BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: 'Weekplan'),
+          BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Vandaag'),
+          BottomNavigationBarItem(icon: Icon(Icons.restaurant_menu), label: 'Maaltijd'),
           BottomNavigationBarItem(icon: Icon(Icons.format_list_bulleted), label: 'Lijst'),
           BottomNavigationBarItem(icon: Icon(Icons.map_outlined), label: 'Route'),
         ],
@@ -71,7 +70,7 @@ class _HoofdNavigatieState extends State<HoofdNavigatie> {
   }
 }
 
-// --- TAB 1: VANDAAG SCHERM (Design nagemaakt) ---
+// --- TAB 1: VANDAAG SCHERM (Time-first benadering) ---
 class VandaagScherm extends StatefulWidget {
   const VandaagScherm({super.key});
 
@@ -80,37 +79,37 @@ class VandaagScherm extends StatefulWidget {
 }
 
 class _VandaagSchermState extends State<VandaagScherm> {
-  final TextEditingController _menuController = TextEditingController();
+  final TextEditingController _tijdController = TextEditingController();
   bool _isLaden = false;
-  Map<String, dynamic>? _apiResultaat;
+  List<dynamic>? _suggesties;
 
-  Future<void> fetchBerekening(String ingevoerdMenu) async {
+  Future<void> fetchBerekening(String input) async {
     setState(() {
       _isLaden = true;
-      _apiResultaat = null; // Reset vorige resultaten
+      _suggesties = null; 
     });
 
-    // LET OP: Check of dit jouw EXACTE nieuwe Render URL is!
+    // LET OP: Update deze URL naar jouw echte Render URL
     final url = Uri.parse('https://smartcart-vtxn.onrender.com/api/calculate');
     
     try {
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'menu': ingevoerdMenu}),
+        body: jsonEncode({'menu': input}),
       );
 
       if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
         setState(() {
-          _apiResultaat = jsonDecode(response.body);
+          _suggesties = data['suggesties'];
           _isLaden = false;
         });
       } else {
         setState(() { _isLaden = false; });
-        // Toon de foutmelding op het scherm
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Server fout: ${response.statusCode}. Check Render!'), backgroundColor: Colors.red),
+            SnackBar(content: Text('Server fout: ${response.statusCode}'), backgroundColor: Colors.red),
           );
         }
       }
@@ -118,7 +117,7 @@ class _VandaagSchermState extends State<VandaagScherm> {
       setState(() { _isLaden = false; });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Netwerkfout: Kan server niet bereiken.'), backgroundColor: Colors.red),
+          const SnackBar(content: Text('Netwerkfout: Kan server niet bereiken.'), backgroundColor: Colors.red),
         );
       }
     }
@@ -126,19 +125,8 @@ class _VandaagSchermState extends State<VandaagScherm> {
 
   @override
   void dispose() {
-    _menuController.dispose();
+    _tijdController.dispose();
     super.dispose();
-  }
-
-  // Berekent het totaal aantal producten in alle categorieën
-  int _berekenTotaalProducten() {
-    if (_apiResultaat == null || _apiResultaat!['ingredienten'] == null) return 0;
-    int totaal = 0;
-    final ingredientenMap = _apiResultaat!['ingredienten'] as Map<String, dynamic>;
-    for (var lijst in ingredientenMap.values) {
-      if (lijst is List) totaal += lijst.length;
-    }
-    return totaal;
   }
 
   @override
@@ -149,11 +137,12 @@ class _VandaagSchermState extends State<VandaagScherm> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // HEADER
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text(
-                  'Goedemorgen\nWard',
+                  'Goedenavond\nWard',
                   style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, height: 1.2),
                 ),
                 Row(
@@ -168,104 +157,117 @@ class _VandaagSchermState extends State<VandaagScherm> {
                 )
               ],
             ),
-            const SizedBox(height: 32),
-            
-            const Text(
-              'Wat wil je deze week eten?',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 24),
+
+            // GESIMULEERDE AGENDA WIDGET
             Container(
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
-                ],
+                border: Border.all(color: Colors.grey.shade200),
               ),
-              child: TextField(
-                controller: _menuController,
-                maxLines: 3,
-                textInputAction: TextInputAction.send,
-                onSubmitted: (waarde) {
-                  if (waarde.isNotEmpty) {
-                    FocusScope.of(context).unfocus();
-                    fetchBerekening(waarde);
-                  }
-                },
-                decoration: InputDecoration(
-                  hintText: 'Vertel wat je lekker vindt, hoeveel je wilt uitgeven of wat je nog in huis hebt...',
-                  hintStyle: TextStyle(color: Colors.grey.shade400),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.all(16),
-                  suffixIcon: _isLaden 
-                      ? const Padding(
-                          padding: EdgeInsets.all(12.0),
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0F4D2A)),
-                        )
-                      : IconButton(
-                          icon: const Icon(Icons.send, color: Color(0xFF0F4D2A)),
-                          onPressed: () {
-                            if (_menuController.text.isNotEmpty) {
-                              FocusScope.of(context).unfocus();
-                              fetchBerekening(_menuController.text);
-                            }
-                          },
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Vandaag', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade50,
+                          borderRadius: BorderRadius.circular(20),
                         ),
-                ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.check_circle, size: 14, color: Color(0xFF0F4D2A)),
+                            SizedBox(width: 4),
+                            Text('Agenda gekoppeld', style: TextStyle(fontSize: 12, color: Color(0xFF0F4D2A))),
+                          ],
+                        ),
+                      )
+                    ],
+                  ),
+                  const Divider(height: 24),
+                  _bouwAgendaItem(Icons.work_outline, '17:00', 'Werk klaar', 'UZ Leuven'),
+                  const SizedBox(height: 12),
+                  _bouwAgendaItem(Icons.sports_tennis, '19:00', 'Tennis', 'Start om 19:00'),
+                ],
               ),
             ),
             const SizedBox(height: 24),
 
-            if (_apiResultaat != null) ...[
-              // We tonen nu ook de naam van het gerecht dat Gemini heeft gekozen!
-              Text(
-                'Gekozen: ${_apiResultaat!['gekozen_gerecht'] ?? 'Menu'}',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F4D2A)),
+            // TIJD INPUT WIDGET
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F4D2A),
+                borderRadius: BorderRadius.circular(20),
               ),
-              const SizedBox(height: 12),
-              Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0F4D2A),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    _bouwStatRow(Icons.local_offer_outlined, '€${_apiResultaat!['total_price'] ?? '0.00'} totaal'),
-                    const Divider(color: Colors.white24, height: 32),
-                    _bouwStatRow(Icons.eco_outlined, 'Route: ${_apiResultaat!['route_info'] ?? 'Berekend'}'),
-                    const Divider(color: Colors.white24, height: 32),
-                    _bouwStatRow(
-                      Icons.storefront_outlined, 
-                      '${_berekenTotaalProducten()} producten gevonden',
-                      onTap: () => _toonProductenLijst(context),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0F4D2A),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'JOUW BESCHIKBARE TIJD',
+                    style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold),
                   ),
-                  onPressed: () => _toonProductenLijst(context),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  const SizedBox(height: 8),
+                  const Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
                     children: [
-                      Padding(
-                        padding: EdgeInsets.only(left: 16.0),
-                        child: Text('Bekijk boodschappenlijst', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                      ),
-                      Icon(Icons.chevron_right, color: Colors.white),
+                      Text('1u 20', style: TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.bold)),
                     ],
                   ),
-                ),
+                  const Text(
+                    'Inclusief winkel, rit naar huis en koken.',
+                    style: TextStyle(color: Colors.white70, fontSize: 14),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: TextField(
+                      controller: _tijdController,
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: (waarde) {
+                        if (waarde.isNotEmpty) fetchBerekening(waarde);
+                      },
+                      decoration: InputDecoration(
+                        hintText: 'Bijv: 1u 20m, gezond en licht',
+                        hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 14),
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        suffixIcon: _isLaden 
+                            ? const Padding(
+                                padding: EdgeInsets.all(10.0),
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0F4D2A)),
+                              )
+                            : IconButton(
+                                icon: const Icon(Icons.arrow_forward_ios, color: Color(0xFF0F4D2A), size: 18),
+                                onPressed: () {
+                                  if (_tijdController.text.isNotEmpty) {
+                                    FocusScope.of(context).unfocus();
+                                    fetchBerekening(_tijdController.text);
+                                  }
+                                },
+                              ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
+            ),
+            const SizedBox(height: 24),
+
+            // SUGGESTIES LIJST
+            if (_suggesties != null) ...[
+              const Text('Wat past vandaag?', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              ..._suggesties!.map((gerecht) => _bouwMaaltijdKaart(gerecht)).toList(),
             ]
           ],
         ),
@@ -273,94 +275,176 @@ class _VandaagSchermState extends State<VandaagScherm> {
     );
   }
 
-  Widget _bouwStatRow(IconData icon, String text, {VoidCallback? onTap}) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4.0),
+  Widget _bouwAgendaItem(IconData icon, String tijd, String titel, String subtitel) {
+    return Row(
+      children: [
+        Icon(icon, color: Colors.grey.shade600, size: 20),
+        const SizedBox(width: 12),
+        Text(tijd, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        const SizedBox(width: 16),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(titel, style: const TextStyle(fontWeight: FontWeight.w600)),
+            Text(subtitel, style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+          ],
+        )
+      ],
+    );
+  }
+
+  Widget _bouwMaaltijdKaart(Map<String, dynamic> gerecht) {
+    return GestureDetector(
+      onTap: () => _toonRoutePlanEnWinkel(context, gerecht),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2)),
+          ],
+        ),
         child: Row(
           children: [
-            Icon(icon, color: Colors.white, size: 24),
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.restaurant, color: Colors.grey),
+            ),
             const SizedBox(width: 16),
             Expanded(
-              child: Text(
-                text, 
-                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
-                softWrap: true,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    gerecht['gerecht_naam'] ?? 'Onbekend gerecht',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    gerecht['waarom_geschikt'] ?? '',
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.shade100,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '${gerecht['bereidingstijd_minuten']} min',
+                          style: TextStyle(color: Colors.amber.shade900, fontWeight: FontWeight.bold, fontSize: 12),
+                        ),
+                      ),
+                      const Spacer(),
+                      const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+                    ],
+                  )
+                ],
               ),
-            ),
-            const Icon(Icons.chevron_right, color: Colors.white54),
+            )
           ],
         ),
       ),
     );
   }
 
-  void _toonProductenLijst(BuildContext context) {
-    if (_apiResultaat == null || _apiResultaat!['ingredienten'] == null) return;
-    
-    final ingredientenMap = _apiResultaat!['ingredienten'] as Map<String, dynamic>;
-    final gerechtNaam = _apiResultaat!['gekozen_gerecht'] ?? 'Boodschappenlijst';
-
-    // We bouwen dynamisch een lijst met categorie-koppen en de producten eronder
-    List<Widget> lijstWeergave = [];
-    
-    ingredientenMap.forEach((categorie, producten) {
-      final prodLijst = producten as List<dynamic>;
-      if (prodLijst.isNotEmpty) {
-        // Voeg de categorie titel toe
-        lijstWeergave.add(
-          Padding(
-            padding: const EdgeInsets.only(top: 16.0, bottom: 8.0),
-            child: Text(
-              categorie, 
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F4D2A))
-            ),
-          )
-        );
-        // Voeg de producten onder deze categorie toe
-        for (var product in prodLijst) {
-          lijstWeergave.add(
-            Card(
-              elevation: 0,
-              color: Colors.grey.shade50,
-              margin: const EdgeInsets.only(bottom: 6),
-              child: ListTile(
-                leading: const Icon(Icons.check_circle_outline, color: Color(0xFF0F4D2A)),
-                title: Text(product.toString(), style: const TextStyle(fontWeight: FontWeight.w500)),
-              ),
-            )
-          );
-        }
-      }
-    });
+  // Toont de gesimuleerde route/tijdslijn en ingrediëntenlijst
+  void _toonRoutePlanEnWinkel(BuildContext context, Map<String, dynamic> gerecht) {
+    final ingredientenMap = gerecht['ingredienten'] as Map<String, dynamic>?;
 
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
-      isScrollControlled: true, // Zorgt dat de popup groter kan worden als de lijst lang is
+      isScrollControlled: true, 
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (BuildContext context) {
         return DraggableScrollableSheet(
           expand: false,
-          initialChildSize: 0.6, // Start op 60% van het scherm
-          maxChildSize: 0.9, // Kan uitgeschoven worden tot 90%
+          initialChildSize: 0.75, 
+          maxChildSize: 0.95, 
           builder: (_, controller) {
             return Padding(
               padding: const EdgeInsets.all(24.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: ListView(
+                controller: controller,
                 children: [
-                  Text(gerechtNaam, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: ListView(
-                      controller: controller,
-                      children: lijstWeergave,
+                  const Text('Jouw snelste plan', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 24),
+                  
+                  // Gesimuleerde Timeline
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F4D2A),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Eten klaar om 18:15', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 4),
+                        Text(gerecht['gerecht_naam'], style: const TextStyle(color: Colors.white70, fontSize: 14)),
+                        const Divider(color: Colors.white24, height: 32),
+                        _bouwTijdStap('17:02', 'Vertrek van je werk'),
+                        _bouwTijdStap('17:13', 'Winkelen (Carrefour Market)'),
+                        _bouwTijdStap('17:48', 'Thuis aankomen'),
+                        _bouwTijdStap('18:15', 'Maaltijd klaar', isLaatste: true),
+                      ],
                     ),
                   ),
+                  const SizedBox(height: 32),
+
+                  // Ingrediëntenlijst
+                  const Text('Boodschappen', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  if (ingredientenMap != null) 
+                    ...ingredientenMap.entries.map((entry) {
+                      final items = entry.value as List<dynamic>;
+                      if (items.isEmpty) return const SizedBox.shrink();
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(top: 16.0, bottom: 8.0),
+                            child: Text(entry.key, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F4D2A))),
+                          ),
+                          ...items.map((item) => Card(
+                            elevation: 0,
+                            color: Colors.grey.shade50,
+                            margin: const EdgeInsets.only(bottom: 6),
+                            child: ListTile(
+                              leading: const Icon(Icons.check_circle_outline, color: Color(0xFF0F4D2A)),
+                              title: Text(item.toString(), style: const TextStyle(fontWeight: FontWeight.w500)),
+                            ),
+                          )),
+                        ],
+                      );
+                    }),
+                  
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0F4D2A),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Start Route', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                  )
                 ],
               ),
             );
@@ -369,9 +453,23 @@ class _VandaagSchermState extends State<VandaagScherm> {
       },
     );
   }
+
+  Widget _bouwTijdStap(String tijd, String actie, {bool isLaatste = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: Row(
+        children: [
+          Text(tijd, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          const SizedBox(width: 16),
+          Icon(isLaatste ? Icons.check_circle : Icons.circle_outlined, color: Colors.white, size: 16),
+          const SizedBox(width: 12),
+          Text(actie, style: const TextStyle(color: Colors.white70)),
+        ],
+      ),
+    );
+  }
 }
 
-// --- TAB 2 & 3: PLACEHOLDER SCHERMEN ---
 class PlaceholderScherm extends StatelessWidget {
   final String titel;
   const PlaceholderScherm({super.key, required this.titel});
@@ -379,25 +477,7 @@ class PlaceholderScherm extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Text(
-        titel,
-        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF0F4D2A)),
-      ),
-    );
-  }
-}
-
-// --- TAB 4: ROUTE SCHERM ---
-class RouteScherm extends StatelessWidget {
-  const RouteScherm({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Text(
-        'Route & Kaart',
-        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF0F4D2A)),
-      ),
+      child: Text(titel, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF0F4D2A))),
     );
   }
 }

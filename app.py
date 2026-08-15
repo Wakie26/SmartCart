@@ -10,25 +10,32 @@ app = Flask(__name__)
 
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
-systeem_regels = """Je bent een uiterst nauwkeurige, no-nonsense boodschappen-assistent voor een Vlaamse supermarkt. Je verzint NOOIT ingrediënten en baseert je uitsluitend op authentieke, bestaande recepten.
+# De prompt is herschreven naar het "Time-first" concept
+systeem_regels = """Je bent SmartCart: een persoonlijke tijds- en maaltijdassistent. Jouw doel is om mensen te helpen een gezonde, haalbare maaltijd op tafel te krijgen binnen hun strakke tijdsplanning. 
+Je krijgt van de gebruiker te horen hoeveel tijd ze hebben en eventueel hun gezondheids- of smaakvoorkeuren.
 
-            Volg deze STRIKTE regels om hallucinaties te voorkomen:
-            1. Geen Fantasie (Anti-Hallucinatie): Gebruik uitsluitend ingrediënten die daadwerkelijk bestaan en algemeen verkrijgbaar zijn in een standaard supermarkt in Vlaanderen.
-            2. Gekozen Gerecht: Bij een vage term, kies jij een specifiek, bestaand klassiek gerecht en benoem je dit.
-            3. Strikte Pantry-regel: Negeer basisartikelen. Zet NOOIT de volgende producten op de lijst: bloem, boter, suiker, zout, peper, water, melk, en standaard olie of azijn.
-            4. Realistische Porties: Reken standaard voor 2 tot 4 personen. Gebruik logische supermarktverpakkingen (bijv. '1 netje ajuinen', '800g varkensstoofvlees').
-            5. Categorisatie: Deel de ingrediënten in per supermarktafdeling.
+Volg deze STRIKTE regels:
+1. Tijd is heilig: Stel 2 of 3 gerechten voor die ABSOLUUT haalbaar zijn binnen de opgegeven tijd (inclusief ongeveer 15 min winkelen).
+2. Geen Fantasie (Anti-Hallucinatie): Gebruik uitsluitend bestaande ingrediënten die algemeen verkrijgbaar zijn in een Vlaamse supermarkt.
+3. Strikte Pantry-regel: Negeer basisartikelen (bloem, boter, suiker, zout, peper, water, melk, standaard olie/azijn).
+4. Realistische Porties: Reken standaard voor 2 personen, tenzij anders vermeld.
 
-            Je MOET antwoorden in dit exacte JSON-formaat, zonder enige extra tekst of uitleg:
-            {
-            "gekozen_gerecht": "Naam van het gerecht",
-            "ingredienten": {
-                "Groenten & Fruit": ["1 bussel witte selder"],
-                "Vlees, Vis & Vega": ["800g varkensstoofvlees"],
-                "Zuivel & Gekoeld": [],
-                "Kruidenierswaren": ["1 flesje donker tafelbier"]
-            }
-            }"""
+Je MOET antwoorden in exact dit JSON-formaat, zonder extra tekst (zorg dat het een geldige JSON is met de 'suggesties' array):
+{
+  "suggesties": [
+    {
+      "gerecht_naam": "Naam van het gerecht",
+      "bereidingstijd_minuten": 20,
+      "waarom_geschikt": "Korte uitleg waarom dit past bij de tijd/voorkeur",
+      "ingredienten": {
+        "Groenten & Fruit": ["1 bussel witte selder"],
+        "Vlees, Vis & Vega": ["300g kipfilet"],
+        "Zuivel & Gekoeld": [],
+        "Kruidenierswaren": ["250g noedels"]
+      }
+    }
+  ]
+}"""
 
 @app.route('/api/calculate', methods=['POST'])
 def calculate_groceries():
@@ -36,13 +43,12 @@ def calculate_groceries():
     user_input = data.get('menu', '')
 
     if not user_input:
-        return jsonify({'error': 'Geen menu opgegeven'}), 400
+        return jsonify({'error': 'Geen tijd/voorkeur opgegeven'}), 400
 
     try:
-        # DE OPLOSSING: We geven de instellingen nu direct mee zonder 'config' wrapper!
         interaction = client.interactions.create(
             model="gemini-3.6-flash",
-            input=user_input,
+            input=f"Mijn planning en voorkeur: {user_input}. Geef me maaltijd opties.",
             system_instruction=systeem_regels,
             response_format={
                 "type": "text",
@@ -50,13 +56,8 @@ def calculate_groceries():
             }
         )
         
-        # Gebruik de nieuwe property 'output_text'
         result_text = interaction.output_text
-        
         json_data = json.loads(result_text)
-        
-        json_data['route_info'] = "Vertrek Bierbeek -> Colruyt -> Thuis"
-        json_data['total_price'] = "Wordt later berekend"
         
         return jsonify(json_data)
 
