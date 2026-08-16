@@ -15,10 +15,6 @@ final String orsToken = dotenv.env['ORS_API_KEY'] ?? '';
 const double thuisLat = 50.8284; // Kerselaarlaan 2A, Bierbeek
 const double thuisLon = 4.7599;
 
-void main() {
-  runApp(const SmartGroceryApp());
-}
-
 class SmartGroceryApp extends StatelessWidget {
   const SmartGroceryApp({super.key});
 
@@ -120,7 +116,7 @@ class _VandaagSchermState extends State<VandaagScherm> {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) throw Exception('Geen GPS toestemming.');
       }
-      Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      Position position = await Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
       final double startLat = position.latitude;
       final double startLon = position.longitude;
 
@@ -259,7 +255,7 @@ class _VandaagSchermState extends State<VandaagScherm> {
             if (_suggesties != null) ...[
               const Text('Wat past vandaag?', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
-              ..._suggesties!.map((gerecht) => _bouwMaaltijdKaart(gerecht)).toList(),
+              ..._suggesties!.map((gerecht) => _bouwMaaltijdKaart(gerecht)),
             ]
           ],
         ),
@@ -289,7 +285,7 @@ class _VandaagSchermState extends State<VandaagScherm> {
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))]),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))]),
         child: Row(
           children: [
             Container(width: 80, height: 80, decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.restaurant, color: Colors.grey)),
